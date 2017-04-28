@@ -41,7 +41,7 @@ x = mat_contents['D'].shape
 # 
 
 start = 1600000
-end = 1600100
+end = 1601000
 rows = end - start
 
 m = Model("dose influence")
@@ -53,7 +53,7 @@ for i in range(x[1]):
 # constraint 2, 3, 4
 d = [0] * (end - start)
 for i in range(start, end):
-    d[i - start] = m.addVar(lb=0.01, ub=1, name=('d'+str(i)))
+    d[i - start] = m.addVar(lb=0, ub=1, name=('d'+str(i)))
     arr = mat_contents['D'].getrow(i).toarray()
     m.addConstr(quicksum(arr[0,j] * fluence[j] for j in range(x[1])) == d[i - start])
 
@@ -66,6 +66,9 @@ for i in range(start, end):
 # objective function
 # leave alpha at 0, no need to consider y's
 m.setObjective(sum(d), GRB.MINIMIZE)
+
+m.update()
+m.write("debug.lp")
 
 # solve!
 m.optimize()
