@@ -57,12 +57,12 @@ m = Model("dose influence")
 # variables, constraint 5
 fluence = [0] * x[1]
 for i in range(x[1]):
-    fluence[i] = m.addVar(lb=0, name=('x'+str(i)))
+    fluence[i] = m.addVar(lb=0, ub=25, name=('x'+str(i)))
 
 # constraint 2, 3, 4
 d = [0] * (end - start)
 for i in range(start, end):
-    d[i - start] = m.addVar(lb=0, ub=100, name=('d'+str(i)))
+    d[i - start] = m.addVar(lb=0, ub=0.1, name=('d'+str(i)))
     arr = mat_contents['D'].getrow(i).toarray()
     m.addConstr(quicksum(arr[0,j] * fluence[j] for j in range(x[1])) == d[i - start])
 
@@ -70,7 +70,7 @@ for i in range(start, end):
 # because we are pre-setting the beam angle
 
 # constraint 7
-ub_ntumor = 75
+ub_ntumor = 0.075
 for i in range(start, end):
 	if(i - start not in voxels):
 		m.addConstr(ub_ntumor >= d[i - start])
