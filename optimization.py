@@ -91,7 +91,12 @@ m.write("debug.lp")
 # solve!
 m.optimize()
 
+total = 0
+
 for v in m.getVars():
     print(v.varName, v.x)
+    if(v.varName[0] == 'd'): total += v.x
 
 print('Obj:', m.objVal)
+print('Average tumor:', m.objVal / len(voxels))
+print('Average non-tumor:', (total - m.objVal) / (end - start - len(voxels)))
