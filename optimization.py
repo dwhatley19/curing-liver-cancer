@@ -2,15 +2,26 @@ import scipy.io as io
 import numpy as np
 from gurobipy import *
 
-start = 1600000
-end = 1601000
+start = 1519000
+end = 1520000
 
-voi_contents = io.loadmat('TG119/Body_VOILIST.mat')
-voxels = {}
+oar_contents = io.loadmat('TG119/Core_VOILIST.mat')
+oar_voxels = {}
 
-for x in voi_contents['v']:
-	if(x[0] > start and x[0] <= end):
-		voxels[x[0]-start] = True
+tumor_contents = io.loadmat('TG119/OuterTarget_VOILIST.mat')
+tumor_voxels = {}
+
+frac_appl_oar = 0.0
+for x in oar_contents['v']:
+    if(x[0] > start and x[0] <= end):
+        frac_appl_oar += 1
+        oar_voxels[x[0]] = True
+
+frac_appl_oar /= oar_contents['v'].size
+
+for x in tumor_contents['v']:
+    if(x[0] > start and x[0] <= end):
+        tumor_voxels[x[0]] = True
 
 # solving the problem for pre-set gantry and couch angles
 # uncomment lines as needed
@@ -57,23 +68,30 @@ m = Model("dose influence")
 # variables, constraint 5
 fluence = [0] * x[1]
 for i in range(x[1]):
-    fluence[i] = m.addVar(lb=0, ub=25, name=('x'+str(i)))
+    fluence[i] = m.addVar(lb=0, ub=2500, name=('x'+str(i)))
 
 # constraint 2, 3, 4
 d = [0] * (end - start)
 for i in range(start, end):
-    d[i - start] = m.addVar(lb=0, ub=0.1, name=('d'+str(i)))
+    d[i - start] = m.addVar(lb=0, ub=1, name=('d'+str(i)))
     arr = mat_contents['D'].getrow(i).toarray()
     m.addConstr(quicksum(arr[0,j] * fluence[j] for j in range(x[1])) == d[i - start])
 
 # constraint 6 not needed
 # because we are pre-setting the beam angle
 
-# constraint 7
-ub_ntumor = 0.075
-for i in range(start, end):
-	if(i - start not in voxels):
-		m.addConstr(ub_ntumor >= d[i - start])
+# tumor region constraint
+lb_tumor = 0.65
+for i in tumor_voxels:
+    m.addConstr(d[i - start] >= lb_tumor)
+
+# OAR region constraint on total sum
+ub_OAR = 20 * frac_appl_oar
+print(ub_OAR)
+oar_constr = 0
+for i in oar_voxels:
+    oar_constr += d[i - start]
+m.addConstr(oar_constr <= ub_OAR)
 
 # constraint 8 not needed
 # because not implementing constraint 1
@@ -81,8 +99,8 @@ for i in range(start, end):
 # objective function
 # leave alpha at 0, no need to consider y's
 obj = 0
-for i in voxels:
-	obj += d[i]
+for i in range(start, end):
+    obj += d[i - start]
 m.setObjective(obj, GRB.MAXIMIZE)
 
 m.update()
@@ -98,5 +116,5 @@ for v in m.getVars():
     if(v.varName[0] == 'd'): total += v.x
 
 print('Obj:', m.objVal)
-print('Average tumor:', m.objVal / len(voxels))
-print('Average non-tumor:', (total - m.objVal) / (end - start - len(voxels)))
+print('Average tumor:', m.objVal / len(tumor_voxels))
+print('Average OAR:', (total - m.objVal) / (end - start - len(oar_voxels)))
