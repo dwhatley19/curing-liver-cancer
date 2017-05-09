@@ -4,8 +4,16 @@ import thread
 import time
 from gurobipy import *
 
-start = 1500000
-end = 1600000
+# solving the problem for pre-set gantry and couch angles
+# uncomment lines as needed
+mat_contents = io.loadmat('TG119/Gantry0_Couch0_D.mat')
+# mat_contents = io.loadmat('TG119/Gantry72_Couch0_D.mat')
+# mat_contents = io.loadmat('TG119/Gantry144_Couch0_D.mat')
+# mat_contents = io.loadmat('TG119/Gantry216_Couch0_D.mat')
+# mat_contents = io.loadmat('TG119/Gantry288_Couch0_D.mat')
+
+start = 0
+end = mat_contents['D'].shape[0] - 1
 
 oar_contents = io.loadmat('TG119/Core_VOILIST.mat')
 oar_voxels = {}
@@ -19,19 +27,14 @@ for x in oar_contents['v']:
         frac_appl_oar += 1
         oar_voxels[x[0]] = True
 
+print(frac_appl_oar)
+
 frac_appl_oar /= oar_contents['v'].size
 
 for x in tumor_contents['v']:
     if(x[0] > start and x[0] <= end):
         tumor_voxels[x[0]] = True
 
-# solving the problem for pre-set gantry and couch angles
-# uncomment lines as needed
-mat_contents = io.loadmat('TG119/Gantry0_Couch0_D.mat')
-# mat_contents = io.loadmat('TG119/Gantry72_Couch0_D.mat')
-# mat_contents = io.loadmat('TG119/Gantry144_Couch0_D.mat')
-# mat_contents = io.loadmat('TG119/Gantry216_Couch0_D.mat')
-# mat_contents = io.loadmat('TG119/Gantry288_Couch0_D.mat')
 # f = open('00.txt', 'w')
 
 # sz = mat_contents['v'].size
@@ -70,17 +73,17 @@ m = Model("dose influence")
 # variables, constraint 5
 flu = [0] * x[1]
 for i in range(x[1]):
-    flu[i] = m.addVar(lb=0, ub=2500, name=('x'+str(i)))
+    flu[i] = m.addVar(lb=0, ub=25, name=('x'+str(i)))
 fluence = np.array(flu)
 
 # constraint 2, 3, 4
-arr = np.array(mat_contents['D'][start:end].todense())
+arr = np.array(mat_contents['D'][start:end+1].todense())
 nonzero = (np.sum(arr, axis=1) > 0).astype(int)
 indices = np.cumsum(nonzero) - 1
 arr = arr[np.sum(arr, axis=1) > 0]
 d = [0] * (arr.shape[0])
 for i in range(arr.shape[0]):
-    d[i] = m.addVar(lb=0, ub=1, name=('d'+str(i)))
+    d[i] = m.addVar(lb=0, ub=0.1, name=('d'+str(i)))
 
 # def add_constrs(lb, ub):
 #     m.addConstrs((np.sum(arr[i - start] * fluence) == d[i - start] for i in range(lb, ub)))
@@ -98,13 +101,13 @@ m.addConstrs((np.sum(arr[i] * fluence) == d[i] for i in range(arr.shape[0])))
 # because we are pre-setting the beam angle
 
 # tumor region constraint
-lb_tumor = 0.65
+lb_tumor = 0.01
 for i in tumor_voxels:
     if(nonzero[i - start]):
         m.addConstr(d[indices[i - start]] >= lb_tumor)
 
 # OAR region constraint on total sum
-ub_OAR = 200 #* frac_appl_oar
+ub_OAR = 20 #* frac_appl_oar
 oar_constr = 0
 for i in oar_voxels:
     if(nonzero[i - start]):
